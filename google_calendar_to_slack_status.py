@@ -181,10 +181,12 @@ def get_key(keyname: Union[tuple, str]) -> str:
     return keyname if isinstance(keyname, str) else keyname[0]
 
 
-def get_my_response_status(event: dict, attendees_key: str, response_key: str):
-    return [aa.get(response_key, '')
-            for aa in event[attendees_key]
-            if aa.get('self', False)][0]
+def get_my_response_status(event: dict, attendees_key: str, response_key: str,
+                           default: str = 'accepted') -> str:
+    for aa in event.get(attendees_key, []):
+        if aa.get('self', False):
+            return aa.get(response_key, '')
+    return default
 
 
 def clean_events(events: List[dict], keys=('summary',
@@ -237,7 +239,7 @@ def clean_events(events: List[dict], keys=('summary',
         # - "tentative": Maybe
         # - "accepted": Yes
         my_status = get_my_response_status(ee_clean, attendees_key,
-                                           response_key)
+                                           response_key, 'accepted')
         if my_status != 'accepted':
             continue
         ee_clean[response_key] = my_status

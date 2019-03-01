@@ -2,7 +2,10 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pytest import mark
 
-from google_calendar_to_slack_status import clean_events, DEFAULT_STATUS, get_key, is_within_next_event, read_value, strptime
+from google_calendar_to_slack_status import (clean_events, DEFAULT_STATUS,
+                                             get_key, get_my_response_status,
+                                             is_within_next_event, read_value,
+                                             strptime)
 
 
 def test_read_value():
@@ -14,6 +17,26 @@ def test_read_value():
 def test_get_key():
     assert get_key('foo') == 'foo'
     assert get_key(('foo', 'bar', 'baz')) == 'foo'
+
+
+def test_get_my_response_status():
+    event = {'foo': 1,
+             'attend': [{'qwe': [4, 5], 'self': False},
+                        {'asd': [6, 7], 'self': True, 'response': 'yes'}],
+             'attend2': [{'qwe': [4, 5], 'resp': 'yes', 'self': False},
+                         {'asd': [6, 7], 'resp': 'yes'}]}
+
+    # Correct keys: `attend` --> `response` (where `self` = True)
+    assert 'yes' == get_my_response_status(event, 'attend', 'response')
+
+    # Response key doesn't exist: `attend` --> X
+    assert '' == get_my_response_status(event, 'attend', 'resp', 'acc')
+
+    # Attendees key doesn't exist
+    assert 'acc' == get_my_response_status(event, 'att', 'response', 'acc')
+
+    # Can't find `self` = True
+    assert 'a' == get_my_response_status(event, 'attend2', 'resp', 'a')
 
 
 def test_clean_events():
