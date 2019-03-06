@@ -34,7 +34,11 @@ else:
     log_file = 'google_calendar_to_slack_status.log'
 
 LOG_FILE = os.path.join(os.path.dirname(__file__), log_file)
-logging.basicConfig(filename=LOG_FILE, level=log_level)
+logging.basicConfig(filename=LOG_FILE,
+                    level=log_level,
+                    format='%(asctime)s [%(name)s:%(levelname)s] %(message)s',
+                    # default: logging.BASIC_FORMAT ('%(levelname)s:%(name)s:%(message)s')
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 # https://github.com/googleapis/google-api-python-client/issues/299#issuecomment-255793971
@@ -53,6 +57,8 @@ import pytz
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+
+from httplib2 import ServerNotFoundError
 
 import pickle
 import re
@@ -135,7 +141,7 @@ def get_next_events(min_time: str, n: int, service) -> List[str]:
     """
     events_resource = service.events()
 
-    logging.info(f'Getting the upcoming {n} event{"s" if n > 1 else ""}...')
+    logger.info(f'Getting the upcoming {n} event{"s" if n > 1 else ""}...')
     events_result = events_resource.list(calendarId='primary',
                                          timeMin=min_time,
                                          maxResults=n,
@@ -144,13 +150,13 @@ def get_next_events(min_time: str, n: int, service) -> List[str]:
     events = events_result.get('items', [])
 
     if not events:
-        logging.info('No upcoming events found.')
+        logger.info('No upcoming events found.')
     for event in events:
         start = event['start'].get('dateTime', event['start'].get('date'))
-        logging.info(f'Next event = {start} {event["summary"]}')
+        logger.info(f'Next event = {start} {event["summary"]}')
 
-    logging.debug(f'Next events (full) = {events}')
-    logging.debug(f'Keys of first event = {sorted(events[0].keys()) if events else []}')
+    logger.debug(f'Next events (full) = {events}')
+    logger.debug(f'Keys of first event = {sorted(events[0].keys()) if events else []}')
     
     return events
 
@@ -301,9 +307,9 @@ def is_within_next_event(now: datetime, next_event: dict,
     if next_event:
         start_dt = strptime(next_event['start'])
         end_dt = strptime(next_event['end'])
-        logging.debug(f'Event starts at = {start_dt}')
-        logging.debug(f'Event finishes at = {end_dt}')
-        logging.debug(f'Now = {now}')
+        logger.debug(f'Event starts at = {start_dt}')
+        logger.debug(f'Event finishes at = {end_dt}')
+        logger.debug(f'Now = {now}')
         if ((start_dt - now).total_seconds() <= minutes_before*60 or \
             start_dt <= now) and (now <= end_dt):
             return True
@@ -314,6 +320,7 @@ def is_within_next_event(now: datetime, next_event: dict,
 # =============================================================================
 
 from slackclient import SlackClient
+from requests.exceptions import ConnectionError as RequestsConnectionError
 
 
 def set_status(sc, text: str, emoji: str = ':spiral_calendar_pad:',
@@ -322,7 +329,8 @@ def set_status(sc, text: str, emoji: str = ':spiral_calendar_pad:',
                        profile={'status_text': text,
                                 'status_emoji': emoji,
                                 'status_expiration': expiration_unixtimestamp})
-    return resp['ok']
+    logger.debug(resp)
+    return resp.get('ok', False)
 
 
 # Google + Slack functions
@@ -330,10 +338,15 @@ def set_status(sc, text: str, emoji: str = ':spiral_calendar_pad:',
 
 def set_status_if_within_range(now: str):
 
-    service = get_calendar()
+    try:
+        service = get_calendar()
+    except ServerNotFoundError as e:
+        logger.info(e)
+        logger.info('You probably lost internet connection.')
+        return
 
     next_events = clean_events(get_next_events(now, 1, service))
-    logging.debug(f'Next events (clean) = {next_events}')
+    logger.debug(f'Next events (clean) = {next_events}')
     
     next_event = next_events[0] if next_events else {}
     
@@ -342,15 +355,20 @@ def set_status_if_within_range(now: str):
         text = f"Meeting: {next_event['summary'] or DEFAULT_STATUS}"
         sc = SlackClient(token=os.environ['SLACK_TOKEN'])
         ok = True
-        ok = set_status(sc,
-                        text=text,
-                        expiration_unixtimestamp=expiration)
+        try:
+            ok = set_status(sc,
+                            text=text,
+                            expiration_unixtimestamp=expiration)
+        except RequestsConnectionError as e:
+            logger.info(e)
+            logger.info('You probably lost internet connection.')
+            ok = False
         if ok:
-            logging.info(f'Status was set to "{text:s}" until {datetime.fromtimestamp(expiration)}.')
+            logger.info(f'Status was set to "{text:s}" until {datetime.fromtimestamp(expiration)}.')
         else:
-            logging.info('Something went wrong.')
+            logger.info('Something went wrong.')
     else:
-        logging.info('Still not close to the next event.')
+        logger.info('Still not close to the next event.')
 
 
 # Run script
@@ -360,6 +378,6 @@ if __name__ == '__main__':
 
     now = datetime.utcnow().isoformat() + 'Z'  # 'Z' --> UTC
     # now = '2019-02-21T10:30:00-03:00'  # to debug
-    logging.info('--------------------------------------------------------------------------------')
-    logging.info(f'Now = {strptime(now)}')
+    logger.info('--------------------------------------------------------------------------------')
+    logger.info(f'Now = {strptime(now)}')
     set_status_if_within_range(now)
