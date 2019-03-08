@@ -58,8 +58,6 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
-from httplib2 import ServerNotFoundError
-
 import pickle
 import re
 from typing import List, Tuple, Union
@@ -320,7 +318,6 @@ def is_within_next_event(now: datetime, next_event: dict,
 # =============================================================================
 
 from slackclient import SlackClient
-from requests.exceptions import ConnectionError as RequestsConnectionError
 
 
 def set_status(sc, text: str, emoji: str = ':spiral_calendar_pad:',
@@ -336,11 +333,16 @@ def set_status(sc, text: str, emoji: str = ':spiral_calendar_pad:',
 # Google + Slack functions
 # =============================================================================
 
+from httplib2 import ServerNotFoundError
+from requests.exceptions import ConnectionError as RequestsConnectionError
+import socket
+
+
 def set_status_if_within_range(now: str):
 
     try:
         service = get_calendar()
-    except ServerNotFoundError as e:
+    except (ServerNotFoundError, socket.timeout) as e:
         logger.info(e)
         logger.info('You probably lost internet connection.')
         return
