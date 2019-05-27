@@ -10,6 +10,9 @@
 #    the name of the event;
 # 4. The expiration time of the Slack status is when the event finishes.
 
+# Requirements
+# =============================================================================
+# python -m pip install 'slackclient>=2.0.1,<3' 'google-api-python-client>=1.6.7,<2' 'google-auth-httplib2>=0.0.3,<1'
 
 # Instructions
 # =============================================================================
@@ -317,7 +320,7 @@ def is_within_next_event(now: datetime, next_event: dict,
 # Slack functions
 # =============================================================================
 
-from slackclient import SlackClient
+import slack
 
 
 def set_status(sc, text: str, emoji: str = ':spiral_calendar_pad:',
@@ -355,7 +358,7 @@ def set_status_if_within_range(now: str):
     if is_within_next_event(strptime(now), next_event):
         expiration = int(strptime(next_event['end']).timestamp()) or 0
         text = f"Meeting: {next_event['summary'] or DEFAULT_STATUS}"
-        sc = SlackClient(token=os.environ['SLACK_TOKEN'])
+        sc = slack.WebClient(token=os.environ['SLACK_TOKEN'])
         ok = True
         try:
             ok = set_status(sc,
