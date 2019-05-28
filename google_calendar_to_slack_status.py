@@ -325,10 +325,12 @@ import slack
 
 def set_status(sc, text: str, emoji: str = ':spiral_calendar_pad:',
                expiration_unixtimestamp: int = 0) -> bool:
-    resp = sc.api_call('users.profile.set',
-                       profile={'status_text': text,
-                                'status_emoji': emoji,
-                                'status_expiration': expiration_unixtimestamp})
+    payload = {'profile': {'status_text': text,
+                           'status_emoji': emoji,
+                           'status_expiration': expiration_unixtimestamp}}
+    resp = sc.api_call(api_method='users.profile.set',
+                       http_verb='POST',
+                       json=payload)
     logger.debug(resp)
     return resp.get('ok', False)
 
