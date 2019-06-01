@@ -12,7 +12,13 @@
 
 # Requirements
 # =============================================================================
-# python -m pip install 'slackclient>=2.0.1,<3' 'google-api-python-client>=1.6.7,<2' 'google-auth-httplib2>=0.0.3,<1'
+# Install dependencies:
+# $ python -m pip install 'slackclient>=2.0.1,<3' 'google-api-python-client>=1.6.7,<2' 'google-auth-httplib2>=0.0.3,<1'
+# 
+# Get Google credentials:
+# 1. Follow "Step 1: Turn on the Google Calendar API" from https://developers.google.com/calendar/quickstart/python
+# 2. Move credentials file to the expected path:
+#    `mkdir -p ~/.credentials/ && mv ~/Downloads/credentials.json ~/.credentials/google-credentials.json`
 
 # Instructions
 # =============================================================================
